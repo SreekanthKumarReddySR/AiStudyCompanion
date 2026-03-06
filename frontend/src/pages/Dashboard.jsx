@@ -3,7 +3,7 @@ import FileUploader from '../components/FileUploader';
 import ChatWindow from '../components/ChatWindow';
 import UserProfileFooter from '../components/UserProfileFooter';
 import DocumentPreviewPanel from '../components/DocumentPreviewPanel';
-import { summarize, listDocuments, getDocument, getChunks, deleteDocument } from '../services/api';
+import { summarize, listDocuments, getDocument, getChunks, deleteDocument, API_ORIGIN } from '../services/api';
 
 const ANALYTICS_KEY = 'study_companion_analytics_v1';
 const SAVED_NOTES_KEY = 'study_companion_saved_notes_v1';
@@ -23,9 +23,7 @@ function formatStudyTime(ms) {
 function normalizeFileUrl(fileUrl) {
   if (!fileUrl) return '';
   if (fileUrl.startsWith('http://') || fileUrl.startsWith('https://')) return fileUrl;
-  const apiBase = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
-  const origin = apiBase.replace(/\/api\/?$/, '');
-  return `${origin}${fileUrl}`;
+  return `${API_ORIGIN}${fileUrl}`;
 }
 
 export default function Dashboard({ token, currentUser, onLogout }) {
