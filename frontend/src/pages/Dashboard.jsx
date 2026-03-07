@@ -5,8 +5,29 @@ import UserProfileFooter from '../components/UserProfileFooter';
 import DocumentPreviewPanel from '../components/DocumentPreviewPanel';
 import { summarize, listDocuments, getDocument, getChunks, deleteDocument, API_ORIGIN } from '../services/api';
 
-const ANALYTICS_KEY = 'study_companion_analytics_v1';
+const ANALYTICS_KEY_PREFIX = 'study_companion_analytics_v1';
 const SAVED_NOTES_KEY = 'study_companion_saved_notes_v1';
+const DEFAULT_ANALYTICS = { questionsAsked: 0, summariesGenerated: 0, studyTimeMs: 0 };
+
+function getAnalyticsStorageKey(currentUser) {
+  const email = (currentUser?.email || '').trim().toLowerCase();
+  return email ? `${ANALYTICS_KEY_PREFIX}:${email}` : `${ANALYTICS_KEY_PREFIX}:guest`;
+}
+
+function readAnalytics(key) {
+  try {
+    const raw = localStorage.getItem(key);
+    if (!raw) return DEFAULT_ANALYTICS;
+    const parsed = JSON.parse(raw);
+    return {
+      questionsAsked: Number(parsed?.questionsAsked) || 0,
+      summariesGenerated: Number(parsed?.summariesGenerated) || 0,
+      studyTimeMs: Number(parsed?.studyTimeMs) || 0
+    };
+  } catch (_err) {
+    return DEFAULT_ANALYTICS;
+  }
+}
 
 function SummaryView({ text }) {
   if (!text) return <div className="summary-empty">Generate a summary from Overview.</div>;
@@ -40,15 +61,8 @@ export default function Dashboard({ token, currentUser, onLogout }) {
   const [highlightedChunkIndex, setHighlightedChunkIndex] = useState(null);
   const [theme, setTheme] = useState(() => localStorage.getItem('theme') || 'dark');
   const [savedNotesTick, setSavedNotesTick] = useState(0);
-  const [analytics, setAnalytics] = useState(() => {
-    try {
-      const raw = localStorage.getItem(ANALYTICS_KEY);
-      if (!raw) return { questionsAsked: 0, summariesGenerated: 0, studyTimeMs: 0 };
-      return JSON.parse(raw);
-    } catch (_err) {
-      return { questionsAsked: 0, summariesGenerated: 0, studyTimeMs: 0 };
-    }
-  });
+  const analyticsStorageKey = useMemo(() => getAnalyticsStorageKey(currentUser), [currentUser?.email]);
+  const [analytics, setAnalytics] = useState(DEFAULT_ANALYTICS);
 
   useEffect(() => {
     localStorage.setItem('theme', theme);
@@ -56,8 +70,12 @@ export default function Dashboard({ token, currentUser, onLogout }) {
   }, [theme]);
 
   useEffect(() => {
-    localStorage.setItem(ANALYTICS_KEY, JSON.stringify(analytics));
-  }, [analytics]);
+    setAnalytics(readAnalytics(analyticsStorageKey));
+  }, [analyticsStorageKey]);
+
+  useEffect(() => {
+    localStorage.setItem(analyticsStorageKey, JSON.stringify(analytics));
+  }, [analytics, analyticsStorageKey]);
 
   useEffect(() => {
     const id = setInterval(() => {
