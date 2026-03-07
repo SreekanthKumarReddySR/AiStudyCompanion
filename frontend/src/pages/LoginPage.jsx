@@ -22,7 +22,8 @@ export default function LoginPage({ onLogin, initialMode = 'login', onModeChange
       onLogin(resp);
     } catch (err) {
       console.error(err);
-      alert(isLogin ? 'Login failed' : 'Signup failed');
+      const fallback = isLogin ? 'Login failed' : 'Signup failed';
+      alert(err?.message || fallback);
     }
   };
 

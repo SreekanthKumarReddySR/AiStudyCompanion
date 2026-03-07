@@ -1,5 +1,16 @@
-export const API_BASE = process.env.REACT_APP_API_URL || '/api';
-export const API_ORIGIN = API_BASE.replace(/\/api\/?$/, '');
+const rawApiUrl = (process.env.REACT_APP_API_URL || '/api').trim();
+
+function normalizeApiBase(url) {
+  if (!url) return '/api';
+  const trimmed = url.replace(/\/+$/, '');
+  if (/^https?:\/\//i.test(trimmed)) {
+    return /\/api$/i.test(trimmed) ? trimmed : `${trimmed}/api`;
+  }
+  return trimmed || '/api';
+}
+
+export const API_BASE = normalizeApiBase(rawApiUrl);
+export const API_ORIGIN = API_BASE.replace(/\/api\/?$/i, '');
 
 // helper to make POST requests with optional token/header
 async function parseResponse(res) {
