@@ -3,34 +3,19 @@ import FileUploader from '../components/FileUploader';
 import ChatWindow from '../components/ChatWindow';
 import UserProfileFooter from '../components/UserProfileFooter';
 import DocumentPreviewPanel from '../components/DocumentPreviewPanel';
-import { summarize, listDocuments, getDocument, getChunks, deleteDocument, API_ORIGIN } from '../services/api';
+import {
+  summarize,
+  listDocuments,
+  getDocument,
+  getChunks,
+  deleteDocument,
+  getAnalytics,
+  incrementAnalytics,
+  API_ORIGIN
+} from '../services/api';
 
-const ANALYTICS_KEY_PREFIX = 'study_companion_analytics_v1';
 const SAVED_NOTES_KEY = 'study_companion_saved_notes_v1';
 const DEFAULT_ANALYTICS = { questionsAsked: 0, summariesGenerated: 0, studyTimeMs: 0 };
-
-function getAnalyticsStorageKey(currentUser) {
-  const userId = (currentUser?.id || currentUser?._id || '').trim();
-  if (userId) return `${ANALYTICS_KEY_PREFIX}:id:${userId}`;
-  const email = (currentUser?.email || '').trim().toLowerCase();
-  return email ? `${ANALYTICS_KEY_PREFIX}:email:${email}` : '';
-}
-
-function readAnalytics(key) {
-  if (!key) return DEFAULT_ANALYTICS;
-  try {
-    const raw = localStorage.getItem(key);
-    if (!raw) return DEFAULT_ANALYTICS;
-    const parsed = JSON.parse(raw);
-    return {
-      questionsAsked: Number(parsed?.questionsAsked) || 0,
-      summariesGenerated: Number(parsed?.summariesGenerated) || 0,
-      studyTimeMs: Number(parsed?.studyTimeMs) || 0
-    };
-  } catch (_err) {
-    return DEFAULT_ANALYTICS;
-  }
-}
 
 function SummaryView({ text }) {
   if (!text) return <div className="summary-empty">Generate a summary from Overview.</div>;
@@ -64,10 +49,6 @@ export default function Dashboard({ token, currentUser, onLogout }) {
   const [highlightedChunkIndex, setHighlightedChunkIndex] = useState(null);
   const [theme, setTheme] = useState(() => localStorage.getItem('theme') || 'dark');
   const [savedNotesTick, setSavedNotesTick] = useState(0);
-  const analyticsStorageKey = useMemo(
-    () => getAnalyticsStorageKey(currentUser),
-    [currentUser?.id, currentUser?._id, currentUser?.email]
-  );
   const [analytics, setAnalytics] = useState(DEFAULT_ANALYTICS);
 
   useEffect(() => {
@@ -76,20 +57,46 @@ export default function Dashboard({ token, currentUser, onLogout }) {
   }, [theme]);
 
   useEffect(() => {
-    setAnalytics(readAnalytics(analyticsStorageKey));
-  }, [analyticsStorageKey]);
+    if (!token) return undefined;
+    let cancelled = false;
 
-  useEffect(() => {
-    if (!analyticsStorageKey) return;
-    localStorage.setItem(analyticsStorageKey, JSON.stringify(analytics));
-  }, [analytics, analyticsStorageKey]);
-  useEffect(() => {
-    if (!analyticsStorageKey) return undefined;
+    const loadAnalytics = async () => {
+      try {
+        const resp = await getAnalytics(token);
+        if (cancelled) return;
+        const next = resp?.analytics || DEFAULT_ANALYTICS;
+        setAnalytics({
+          questionsAsked: Number(next.questionsAsked) || 0,
+          summariesGenerated: Number(next.summariesGenerated) || 0,
+          studyTimeMs: Number(next.studyTimeMs) || 0
+        });
+      } catch (_err) {
+        if (!cancelled) {
+          setAnalytics(DEFAULT_ANALYTICS);
+        }
+      }
+    };
+
+    loadAnalytics();
+
     const id = setInterval(() => {
-      setAnalytics((prev) => ({ ...prev, studyTimeMs: (prev.studyTimeMs || 0) + 30000 }));
+      incrementAnalytics({ studyTimeMs: 30000 }, token)
+        .then((resp) => {
+          if (cancelled) return;
+          const next = resp?.analytics || DEFAULT_ANALYTICS;
+          setAnalytics({
+            questionsAsked: Number(next.questionsAsked) || 0,
+            summariesGenerated: Number(next.summariesGenerated) || 0,
+            studyTimeMs: Number(next.studyTimeMs) || 0
+          });
+        })
+        .catch(() => {});
     }, 30000);
-    return () => clearInterval(id);
-  }, [analyticsStorageKey]);
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+    };
+  }, [token]);
 
   useEffect(() => {
     const onSaved = () => setSavedNotesTick((v) => v + 1);
@@ -163,7 +170,17 @@ export default function Dashboard({ token, currentUser, onLogout }) {
     try {
       const resp = await summarize(docId.trim(), token);
       setSummary(resp.summary || 'No summary returned.');
-      setAnalytics((prev) => ({ ...prev, summariesGenerated: (prev.summariesGenerated || 0) + 1 }));
+      try {
+        const updated = await incrementAnalytics({ summariesGenerated: 1 }, token);
+        const next = updated?.analytics || DEFAULT_ANALYTICS;
+        setAnalytics({
+          questionsAsked: Number(next.questionsAsked) || 0,
+          summariesGenerated: Number(next.summariesGenerated) || 0,
+          studyTimeMs: Number(next.studyTimeMs) || 0
+        });
+      } catch (_ignored) {
+        // Keep summary success even if analytics update fails.
+      }
       setActive('summary');
     } catch (err) {
       setError(err.message || 'Failed to generate summary.');
@@ -339,7 +356,19 @@ export default function Dashboard({ token, currentUser, onLogout }) {
               token={token}
               docId={docId}
               selectedDocument={selectedDoc}
-              onQuestionAsked={() => setAnalytics((prev) => ({ ...prev, questionsAsked: (prev.questionsAsked || 0) + 1 }))}
+              onQuestionAsked={async () => {
+                try {
+                  const updated = await incrementAnalytics({ questionsAsked: 1 }, token);
+                  const next = updated?.analytics || DEFAULT_ANALYTICS;
+                  setAnalytics({
+                    questionsAsked: Number(next.questionsAsked) || 0,
+                    summariesGenerated: Number(next.summariesGenerated) || 0,
+                    studyTimeMs: Number(next.studyTimeMs) || 0
+                  });
+                } catch (_ignored) {
+                  // Ignore analytics update errors during chat.
+                }
+              }}
               onAssistantSources={(sources) => {
                 const first = sources?.[0];
                 if (first?.chunkIndex) setHighlightedChunkIndex(first.chunkIndex);

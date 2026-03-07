@@ -96,3 +96,5 @@ export const deleteDocument = (docId, token) => del(`/docs/${docId}`, token);
 
 export const queryChat = (query, docId, token, history = []) => post('/chat/query', { query, docId, history }, token);
 export const summarize = (docId, token) => post('/chat/summary', { docId }, token);
+export const getAnalytics = (token) => get('/analytics', token);
+export const incrementAnalytics = (metrics, token) => post('/analytics/increment', metrics || {}, token);

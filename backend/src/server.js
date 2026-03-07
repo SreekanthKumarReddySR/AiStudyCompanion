@@ -6,6 +6,7 @@ require('dotenv').config({ path: path.resolve(__dirname, '../../.env') });
 const authRoutes = require('./routes/authRoutes');
 const docRoutes = require('./routes/docRoutes');
 const chatRoutes = require('./routes/chatRoutes');
+const analyticsRoutes = require('./routes/analyticsRoutes');
 const app = express();
 const MONGO_URI = process.env.MONGO_URI;
 const PORT = Number(process.env.PORT) || 5000;
@@ -46,6 +47,7 @@ app.get('/api/health', (req, res) => {
 app.use('/api/auth', requireDb, authRoutes);
 app.use('/api/docs', requireDb, docRoutes);
 app.use('/api/chat', requireDb, chatRoutes);
+app.use('/api/analytics', requireDb, analyticsRoutes);
 
 async function connectMongoWithRetry() {
   dbConnectAttempts += 1;
