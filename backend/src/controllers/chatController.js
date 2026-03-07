@@ -55,7 +55,7 @@ exports.queryChat = async (req, res) => {
     const context = ranked.map(r => r.metadata.text).join('\n---\n');
     // 4. Call LLM
     const llmQuestion = queryProcessing.buildQuestionForLLM(query, safeHistory);
-    let answer = await llmService.answerQuestion(llmQuestion, context);
+    let answer = await llmService.answerQuestion(llmQuestion, context, query);
     const looksEntityQuery = entityQa.isEntityQuestion(query);
     if (looksEntityQuery && isLowExtractionQuality(doc)) {
       answer = `${answer}\n\nNote: This PDF text extraction looks limited. If this is a scanned letter/image PDF, OCR is recommended for accurate name/company fields.`;

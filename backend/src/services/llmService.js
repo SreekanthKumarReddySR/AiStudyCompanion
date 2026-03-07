@@ -357,8 +357,8 @@ async function combineChunkSummariesWithLLM(chunkSummaries) {
   return callLLM(prompt, 520);
 }
 
-exports.answerQuestion = async (question, context) => {
-  const entityAnswer = entityQa.answerEntityQuestion(question, context);
+exports.answerQuestion = async (question, context, rawUserQuery = '') => {
+  const entityAnswer = entityQa.answerEntityQuestion(rawUserQuery || question, context);
   if (entityAnswer) {
     return entityAnswer;
   }
