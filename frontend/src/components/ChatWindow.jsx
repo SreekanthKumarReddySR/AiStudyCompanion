@@ -62,7 +62,8 @@ export default function ChatWindow({ token, docId, onAssistantSources, onQuestio
   };
 
   const send = async (textOverride = '') => {
-    const normalized = (textOverride || input).trim();
+    const overrideText = typeof textOverride === 'string' ? textOverride : '';
+    const normalized = (overrideText || input || '').trim();
     if (!normalized || busy) return;
     if (!docId) {
       setError('Please select a document before asking a question.');
@@ -179,7 +180,7 @@ export default function ChatWindow({ token, docId, onAssistantSources, onQuestio
       {error && <p className="error-text">{error}</p>}
       <div className="chat-input-row">
         <input value={input} onChange={e=>setInput(e.target.value)} placeholder="Ask a question from selected PDF..." />
-        <button className="button" onClick={send} disabled={busy}>{busy ? 'Thinking...' : 'Send'}</button>
+        <button className="button" onClick={() => send()} disabled={busy}>{busy ? 'Thinking...' : 'Send'}</button>
       </div>
     </div>
   );

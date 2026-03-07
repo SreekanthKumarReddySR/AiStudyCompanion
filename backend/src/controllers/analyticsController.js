@@ -69,7 +69,7 @@ exports.incrementAnalytics = async (req, res) => {
           summariesGenerated,
           studyTimeMs
         },
-        $setOnInsert: { userId: req.userId, ...ZERO_ANALYTICS }
+        $setOnInsert: { userId: req.userId }
       },
       { new: true, upsert: true }
     );
