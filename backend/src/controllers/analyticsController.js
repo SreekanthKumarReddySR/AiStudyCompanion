@@ -27,6 +27,7 @@ exports.getAnalytics = async (req, res) => {
   try {
     const analytics = await getOrCreateAnalytics(req.userId);
     return res.json({
+      userId: String(req.userId),
       analytics: {
         questionsAsked: analytics.questionsAsked || 0,
         summariesGenerated: analytics.summariesGenerated || 0,
@@ -51,6 +52,7 @@ exports.incrementAnalytics = async (req, res) => {
     if (!hasAnyIncrement) {
       const analytics = await getOrCreateAnalytics(req.userId);
       return res.json({
+        userId: String(req.userId),
         analytics: {
           questionsAsked: analytics.questionsAsked || 0,
           summariesGenerated: analytics.summariesGenerated || 0,
@@ -73,6 +75,7 @@ exports.incrementAnalytics = async (req, res) => {
     );
 
     return res.json({
+      userId: String(req.userId),
       analytics: {
         questionsAsked: analytics.questionsAsked || 0,
         summariesGenerated: analytics.summariesGenerated || 0,
