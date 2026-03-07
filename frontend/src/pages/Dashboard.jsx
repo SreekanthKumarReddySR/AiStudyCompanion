@@ -91,7 +91,9 @@ export default function Dashboard({ token, currentUser, onLogout }) {
             studyTimeMs: Number(next.studyTimeMs) || 0
           });
         })
-        .catch(() => {});
+        .catch((err) => {
+          console.error('Analytics increment failed (study time):', err);
+        });
     }, 30000);
     return () => {
       cancelled = true;
@@ -180,6 +182,7 @@ export default function Dashboard({ token, currentUser, onLogout }) {
           studyTimeMs: Number(next.studyTimeMs) || 0
         });
       } catch (_ignored) {
+        console.error('Analytics increment failed (summary).');
         // Keep summary success even if analytics update fails.
       }
       setActive('summary');
@@ -367,6 +370,7 @@ export default function Dashboard({ token, currentUser, onLogout }) {
                     studyTimeMs: Number(next.studyTimeMs) || 0
                   });
                 } catch (_ignored) {
+                  console.error('Analytics increment failed (question).');
                   // Ignore analytics update errors during chat.
                 }
               }}
