@@ -11,6 +11,7 @@ const MONGO_URI = process.env.MONGO_URI;
 const PORT = Number(process.env.PORT) || 5000;
 const DB_RETRY_MS = 5000;
 let lastDbError = 'not connected yet';
+let dbConnectAttempts = 0;
 
 // enable CORS for all origins (adjust as needed)
 app.use(cors());
@@ -32,7 +33,9 @@ function requireDb(req, res, next) {
 app.get('/api/health', (req, res) => {
   const payload = {
     status: 'ok',
-    db: isDbConnected() ? 'connected' : 'disconnected'
+    db: isDbConnected() ? 'connected' : 'disconnected',
+    mongoUriConfigured: Boolean(MONGO_URI),
+    dbConnectAttempts
   };
   if (!isDbConnected()) {
     payload.dbError = lastDbError;
@@ -45,13 +48,18 @@ app.use('/api/docs', requireDb, docRoutes);
 app.use('/api/chat', requireDb, chatRoutes);
 
 async function connectMongoWithRetry() {
+  dbConnectAttempts += 1;
   if (!MONGO_URI) {
     lastDbError = 'MONGO_URI is not set';
     console.error('MongoDB connection failed: MONGO_URI is not set');
     return;
   }
   try {
-    await mongoose.connect(MONGO_URI);
+    lastDbError = 'connecting';
+    await mongoose.connect(MONGO_URI, {
+      serverSelectionTimeoutMS: 10000,
+      connectTimeoutMS: 10000
+    });
     lastDbError = '';
     console.log('MongoDB connected');
   } catch (err) {
