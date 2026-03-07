@@ -22,6 +22,10 @@ function sanitizeHistory(history, maxTurns = 6) {
 
 function buildRetrievalQueryFromHistory(query, history) {
   const current = buildRetrievalQuery(query);
+  // Entity lookup questions should stay focused on current turn.
+  if (/\b(who|name|person|candidate|employee|company|organization|date|period|project|title)\b/i.test(current)) {
+    return current;
+  }
   const turns = sanitizeHistory(history, 4);
   if (!turns.length) return current;
   const convo = turns.map((t) => `${t.role}: ${t.text}`).join(' | ');

@@ -1,5 +1,6 @@
 const axios = require('axios');
 const prompts = require('../utils/promptTemplates');
+const entityQa = require('../utils/entityQa');
 
 function splitForSummarization(text, targetSize = 6000) {
   const clean = (text || '').replace(/\r/g, '\n').trim();
@@ -357,6 +358,10 @@ async function combineChunkSummariesWithLLM(chunkSummaries) {
 }
 
 exports.answerQuestion = async (question, context) => {
+  const entityAnswer = entityQa.answerEntityQuestion(question, context);
+  if (entityAnswer) {
+    return entityAnswer;
+  }
   const p = prompts.qa.replace('{context}', context).replace('{question}', question);
   try {
     const out = await callLLM(p, 420);

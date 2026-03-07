@@ -5,6 +5,16 @@ const llmService = require('../services/llmService');
 const Document = require('../models/Document');
 const ranking = require('../utils/ranking');
 const queryProcessing = require('../utils/queryProcessing');
+const entityQa = require('../utils/entityQa');
+
+function isLowExtractionQuality(doc) {
+  const text = String(doc?.originalText || '');
+  if (!text.trim()) return true;
+  const alphaCount = (text.match(/[A-Za-z]/g) || []).length;
+  const nonSpaceCount = (text.match(/\S/g) || []).length || 1;
+  const alphaRatio = alphaCount / nonSpaceCount;
+  return text.length < 280 || alphaRatio < 0.35;
+}
 
 exports.queryChat = async (req, res) => {
   const { query, docId, history } = req.body;
@@ -45,7 +55,11 @@ exports.queryChat = async (req, res) => {
     const context = ranked.map(r => r.metadata.text).join('\n---\n');
     // 4. Call LLM
     const llmQuestion = queryProcessing.buildQuestionForLLM(query, safeHistory);
-    const answer = await llmService.answerQuestion(llmQuestion, context);
+    let answer = await llmService.answerQuestion(llmQuestion, context);
+    const looksEntityQuery = entityQa.isEntityQuestion(query);
+    if (looksEntityQuery && isLowExtractionQuality(doc)) {
+      answer = `${answer}\n\nNote: This PDF text extraction looks limited. If this is a scanned letter/image PDF, OCR is recommended for accurate name/company fields.`;
+    }
     pipeline.push({ step: 'llm_synthesis', status: 'completed' });
     pipeline.push({ step: 'output', status: 'completed' });
     const sources = ranked.map((r) => ({
