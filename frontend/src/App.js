@@ -17,12 +17,17 @@ function App() {
   const handleLogin = (authPayload) => {
     const t = typeof authPayload === 'string' ? authPayload : authPayload?.token;
     const user = typeof authPayload === 'object' ? authPayload?.user : null;
+    const userId = typeof authPayload === 'object' ? authPayload?.userId : null;
     if (!t) return;
     setToken(t);
     localStorage.setItem('token', t);
-    if (user) {
-      setCurrentUser(user);
-      localStorage.setItem('currentUser', JSON.stringify(user));
+    if (user || userId) {
+      const mergedUser = {
+        ...(user || {}),
+        ...(userId ? { id: userId } : {})
+      };
+      setCurrentUser(mergedUser);
+      localStorage.setItem('currentUser', JSON.stringify(mergedUser));
     }
     setView('dashboard');
   };

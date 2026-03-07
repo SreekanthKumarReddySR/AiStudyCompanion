@@ -10,11 +10,14 @@ const SAVED_NOTES_KEY = 'study_companion_saved_notes_v1';
 const DEFAULT_ANALYTICS = { questionsAsked: 0, summariesGenerated: 0, studyTimeMs: 0 };
 
 function getAnalyticsStorageKey(currentUser) {
+  const userId = (currentUser?.id || currentUser?._id || '').trim();
+  if (userId) return `${ANALYTICS_KEY_PREFIX}:id:${userId}`;
   const email = (currentUser?.email || '').trim().toLowerCase();
-  return email ? `${ANALYTICS_KEY_PREFIX}:${email}` : `${ANALYTICS_KEY_PREFIX}:guest`;
+  return email ? `${ANALYTICS_KEY_PREFIX}:email:${email}` : '';
 }
 
 function readAnalytics(key) {
+  if (!key) return DEFAULT_ANALYTICS;
   try {
     const raw = localStorage.getItem(key);
     if (!raw) return DEFAULT_ANALYTICS;
@@ -61,7 +64,10 @@ export default function Dashboard({ token, currentUser, onLogout }) {
   const [highlightedChunkIndex, setHighlightedChunkIndex] = useState(null);
   const [theme, setTheme] = useState(() => localStorage.getItem('theme') || 'dark');
   const [savedNotesTick, setSavedNotesTick] = useState(0);
-  const analyticsStorageKey = useMemo(() => getAnalyticsStorageKey(currentUser), [currentUser?.email]);
+  const analyticsStorageKey = useMemo(
+    () => getAnalyticsStorageKey(currentUser),
+    [currentUser?.id, currentUser?._id, currentUser?.email]
+  );
   const [analytics, setAnalytics] = useState(DEFAULT_ANALYTICS);
 
   useEffect(() => {
@@ -74,15 +80,16 @@ export default function Dashboard({ token, currentUser, onLogout }) {
   }, [analyticsStorageKey]);
 
   useEffect(() => {
+    if (!analyticsStorageKey) return;
     localStorage.setItem(analyticsStorageKey, JSON.stringify(analytics));
   }, [analytics, analyticsStorageKey]);
-
   useEffect(() => {
+    if (!analyticsStorageKey) return undefined;
     const id = setInterval(() => {
       setAnalytics((prev) => ({ ...prev, studyTimeMs: (prev.studyTimeMs || 0) + 30000 }));
     }, 30000);
     return () => clearInterval(id);
-  }, []);
+  }, [analyticsStorageKey]);
 
   useEffect(() => {
     const onSaved = () => setSavedNotesTick((v) => v + 1);
