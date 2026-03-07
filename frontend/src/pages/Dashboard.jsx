@@ -59,6 +59,7 @@ export default function Dashboard({ token, currentUser, onLogout }) {
   useEffect(() => {
     if (!token) return undefined;
     let cancelled = false;
+    setAnalytics(DEFAULT_ANALYTICS);
 
     const loadAnalytics = async () => {
       try {

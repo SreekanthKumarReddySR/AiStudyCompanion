@@ -15,12 +15,15 @@ function parseIncrement(value) {
 async function getOrCreateAnalytics(userId) {
   return UserAnalytics.findOneAndUpdate(
     { userId },
-    { $setOnInsert: { ...ZERO_ANALYTICS } },
+    { $setOnInsert: { userId, ...ZERO_ANALYTICS } },
     { new: true, upsert: true }
   );
 }
 
 exports.getAnalytics = async (req, res) => {
+  if (!req.userId) {
+    return res.status(401).json({ message: 'Invalid token payload.' });
+  }
   try {
     const analytics = await getOrCreateAnalytics(req.userId);
     return res.json({
@@ -36,6 +39,9 @@ exports.getAnalytics = async (req, res) => {
 };
 
 exports.incrementAnalytics = async (req, res) => {
+  if (!req.userId) {
+    return res.status(401).json({ message: 'Invalid token payload.' });
+  }
   const questionsAsked = parseIncrement(req.body?.questionsAsked);
   const summariesGenerated = parseIncrement(req.body?.summariesGenerated);
   const studyTimeMs = parseIncrement(req.body?.studyTimeMs);
@@ -61,7 +67,7 @@ exports.incrementAnalytics = async (req, res) => {
           summariesGenerated,
           studyTimeMs
         },
-        $setOnInsert: { ...ZERO_ANALYTICS }
+        $setOnInsert: { userId: req.userId, ...ZERO_ANALYTICS }
       },
       { new: true, upsert: true }
     );
