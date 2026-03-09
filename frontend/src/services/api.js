@@ -8,7 +8,7 @@ function normalizeApiBase(url) {
   }
   return trimmed || '/api';
 }
-
+ 
 export const API_BASE = normalizeApiBase(rawApiUrl);
 export const API_ORIGIN = API_BASE.replace(/\/api\/?$/i, '');
 
