@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { login, signup } from '../services/api';
+import aiTeachLogo from '../assets/ai-teach-logo.svg';
 
 export default function HomePage({ onLogin }) {
   const [showModal, setShowModal] = useState(true);
@@ -24,7 +25,9 @@ export default function HomePage({ onLogin }) {
     <div className="home-container">
       {/* NAVBAR */}
       <nav className="navbar">
-        <h2 className="logo">StudyCompanion AI</h2>
+        <h2 className="logo">
+          <img src={aiTeachLogo} alt="StudyCompanion AI logo showing AI teaching students" className="brand-logo home-logo" />
+        </h2>
         <ul className="nav-links">
           <li onClick={() => setShowModal(true)}>Home</li>
           <li onClick={() => setShowModal(true)}>Features</li>

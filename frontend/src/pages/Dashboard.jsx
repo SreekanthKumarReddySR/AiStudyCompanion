@@ -3,6 +3,7 @@ import FileUploader from '../components/FileUploader';
 import ChatWindow from '../components/ChatWindow';
 import UserProfileFooter from '../components/UserProfileFooter';
 import DocumentPreviewPanel from '../components/DocumentPreviewPanel';
+import aiTeachLogo from '../assets/ai-teach-logo.svg';
 import {
   summarize,
   listDocuments,
@@ -255,7 +256,9 @@ export default function Dashboard({ token, currentUser, onLogout }) {
   return (
     <div className="study-shell">
       <aside className="study-sidebar">
-        <div className="brand">StudyCompanion</div>
+        <div className="brand">
+          <img src={aiTeachLogo} alt="StudyCompanion AI logo showing AI teaching students" className="brand-logo sidebar-logo" />
+        </div>
         <button className={`side-item ${active === 'overview' ? 'active' : ''}`} onClick={() => setActive('overview')}>
           <span className="side-icon">📊</span>Overview
         </button>

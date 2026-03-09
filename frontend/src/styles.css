@@ -534,6 +534,26 @@ label {
 
 .logo {
   font-size: 22px;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  line-height: 1;
+}
+
+.brand-logo {
+  display: block;
+  height: auto;
+  object-fit: contain;
+}
+
+.home-logo {
+  width: 130px;
+  min-width: 130px;
+}
+
+.sidebar-logo {
+  width: 132px;
+  min-width: 132px;
 }
 
 .nav-links {
@@ -698,6 +718,11 @@ label {
   .nav-links {
     display: none;
   }
+
+  .home-logo {
+    width: 108px;
+    min-width: 108px;
+  }
 }
 
 /* ---------- authenticated study dashboard ---------- */
@@ -727,6 +752,10 @@ label {
   font-weight: 700;
   margin-bottom: 16px;
   color: #f8fafc;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: flex-start;
 }
 
 .side-item {
