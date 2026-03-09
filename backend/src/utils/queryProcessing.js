@@ -21,28 +21,13 @@ function sanitizeHistory(history, maxTurns = 6) {
 }
 
 function buildRetrievalQueryFromHistory(query, history) {
-  const current = buildRetrievalQuery(query);
-  // Entity lookup questions should stay focused on current turn.
-  if (/\b(who|name|person|candidate|employee|company|organization|date|period|project|title)\b/i.test(current)) {
-    return current;
-  }
-  const turns = sanitizeHistory(history, 4);
-  if (!turns.length) return current;
-  const convo = turns.map((t) => `${t.role}: ${t.text}`).join(' | ');
-  return normalizeQuery(`${convo} | user: ${current}`).slice(0, 1200);
+  // Intentionally ignore history to force every question to be independent.
+  return buildRetrievalQuery(query);
 }
 
 function buildQuestionForLLM(query, history) {
-  const current = normalizeQuery(query);
-  const turns = sanitizeHistory(history, 4);
-  if (!turns.length) return current;
-  const convo = turns.map((t) => `${t.role}: ${t.text}`).join('\n');
-  return [
-    'Conversation so far (for follow-up disambiguation only):',
-    convo,
-    '',
-    `Current user question: ${current}`
-  ].join('\n');
+  // Intentionally ignore history to force every question to be independent.
+  return normalizeQuery(query);
 }
 
 module.exports = {

@@ -52,20 +52,13 @@ export default function ChatWindow({ token, docId, onAssistantSources, onQuestio
     });
   };
 
-  const buildHistoryPayload = () => {
-    return messages
-      .slice(-8)
-      .map((m) => ({
-        role: m.sender === 'bot' ? 'assistant' : 'user',
-        text: m.text
-      }));
-  };
+  const buildHistoryPayload = () => [];
 
   const send = async (textOverride = '') => {
     const overrideText = typeof textOverride === 'string' ? textOverride : '';
     const normalized = (overrideText || input || '').trim();
     if (!normalized || busy) return;
-    if (!docId) {
+    if (!activeDocId) {
       setError('Please select a document before asking a question.');
       return;
     }
@@ -78,7 +71,7 @@ export default function ChatWindow({ token, docId, onAssistantSources, onQuestio
     setBusy(true);
     setError('');
     try {
-      const resp = await queryChat(userText, docId, token, buildHistoryPayload());
+      const resp = await queryChat(userText, activeDocId, token, buildHistoryPayload());
       appendMessage({
         sender: 'bot',
         text: resp.answer || 'No answer returned.',
@@ -136,15 +129,35 @@ export default function ChatWindow({ token, docId, onAssistantSources, onQuestio
     rec.start();
   };
 
+  const clearChatHistory = () => {
+    const activeDocId = docId || selectedDocument?._id || selectedDocument?.id || '';
+    if (!activeDocId) return;
+    const ok = window.confirm('Clear chat history for this document?');
+    if (!ok) return;
+    setHistoryByDoc((prev) => {
+      const next = { ...prev };
+      delete next[activeDocId];
+      return next;
+    });
+    setError('');
+  };
+
+  const activeDocId = docId || selectedDocument?._id || selectedDocument?.id || '';
+
   return (
     <div className="chat-card">
       <div className="chat-head">
         <h3>Ask Questions from Your Materials</h3>
-        {voiceSupported && (
-          <button className="button outline voice-btn" onClick={toggleVoice} disabled={busy}>
-            {listening ? 'Listening...' : 'Ask AI'}
+        <div className="row-actions">
+          <button className="button outline" onClick={clearChatHistory} disabled={busy || !activeDocId}>
+            Clear Chat
           </button>
-        )}
+          {voiceSupported && (
+            <button className="button outline voice-btn" onClick={toggleVoice} disabled={busy}>
+              {listening ? 'Listening...' : 'Ask AI'}
+            </button>
+          )}
+        </div>
       </div>
       <div className="chat-log">
         {!docId && <div className="summary-empty">Select a document to view its chat history.</div>}

@@ -137,12 +137,19 @@ export default function Dashboard({ token, currentUser, onLogout }) {
   }, [documents, folderFilter]);
 
   useEffect(() => {
-    if (!docId) return;
-    const exists = visibleDocs.some((d) => d._id === docId);
-    if (!exists) {
-      setDocId(visibleDocs.length ? visibleDocs[0]._id : '');
+    if (!documents.length) {
+      if (docId) setDocId('');
+      return;
     }
-  }, [visibleDocs, docId]);
+    if (!docId) {
+      setDocId(documents[0]._id);
+      return;
+    }
+    const existsInAll = documents.some((d) => d._id === docId);
+    if (!existsInAll) {
+      setDocId(documents[0]._id);
+    }
+  }, [documents, docId]);
 
   useEffect(() => {
     const loadSelectedDoc = async () => {
@@ -194,7 +201,8 @@ export default function Dashboard({ token, currentUser, onLogout }) {
   };
 
   const handleUploaded = async (document, uploadSummary) => {
-    if (document?.id) setDocId(document.id);
+    const uploadedDocId = document?.id || document?._id || '';
+    if (uploadedDocId) setDocId(uploadedDocId);
     if (uploadSummary) {
       setSummary(uploadSummary);
       setActive('summary');
