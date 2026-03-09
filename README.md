@@ -31,7 +31,7 @@ flowchart TD
 ```mermaid
 flowchart LR
   U1[Upload file] --> U2[Text extraction]
-  U2 --> U3[chunkText(text, 900, 180)]
+  U2 --> U3["chunkText(text, 900, 180)"]
   U3 --> U4[For each chunk: save metadata]
   U4 --> U5[For each chunk: create embedding]
   U5 --> U6[Store embedding in chunk record]
