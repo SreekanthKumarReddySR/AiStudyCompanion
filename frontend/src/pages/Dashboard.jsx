@@ -1,8 +1,11 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import FileUploader from '../components/FileUploader';
-import ChatWindow from '../components/ChatWindow';
-import UserProfileFooter from '../components/UserProfileFooter';
-import DocumentPreviewPanel from '../components/DocumentPreviewPanel';
+import FileUploader from '../components/FileUploader.jsx';
+import ChatWindow from '../components/ChatWindow.jsx';
+import ChatSidebar from '../components/ChatSidebar.jsx';
+import OnboardingOverlay from '../components/OnboardingOverlay.jsx';
+import UserProfileFooter from '../components/UserProfileFooter.jsx';
+import DocumentPreviewPanel from '../components/DocumentPreviewPanel.jsx';
+import { useNotification } from '../context/NotificationContext.jsx';
 import aiTeachLogo from '../assets/ai-teach-logo.svg';
 import {
   summarize,
@@ -12,6 +15,7 @@ import {
   deleteDocument,
   getAnalytics,
   incrementAnalytics,
+  updateOnboardingStatus,
   API_ORIGIN
 } from '../services/api';
 
@@ -36,9 +40,11 @@ function normalizeFileUrl(fileUrl) {
   return `${API_ORIGIN}${fileUrl}`;
 }
 
-export default function Dashboard({ token, currentUser, onLogout }) {
+export default function Dashboard({ token, currentUser, onLogout, onUpdateUser }) {
+  const notify = useNotification();
   const [active, setActive] = useState('overview');
   const [docId, setDocId] = useState('');
+  const [currentChatId, setCurrentChatId] = useState(null);
   const [documents, setDocuments] = useState([]);
   const [folderFilter, setFolderFilter] = useState('All');
   const [summary, setSummary] = useState('');
@@ -51,11 +57,87 @@ export default function Dashboard({ token, currentUser, onLogout }) {
   const [theme, setTheme] = useState(() => localStorage.getItem('theme') || 'dark');
   const [savedNotesTick, setSavedNotesTick] = useState(0);
   const [analytics, setAnalytics] = useState(DEFAULT_ANALYTICS);
+  const [onboardingVisible, setOnboardingVisible] = useState(Boolean(currentUser?.firstTime));
+  const [onboardingStep, setOnboardingStep] = useState(Number(currentUser?.onboardingStep ?? 0));
+  const onboardingSteps = useMemo(() => [
+    {
+      title: 'Upload your study material',
+      description: 'Use the Upload section to add your PDFs, slides, or notes so AI can review them.',
+      detail: 'Upload once and the app keeps your content ready for questions, summaries, and saved notes.'
+    },
+    {
+      title: 'Select the active document',
+      description: 'Pick a document from the list so Ask AI and Summary use the right material.',
+      detail: 'This helps the assistant answer questions using the correct source file.'
+    },
+    {
+      title: 'Ask AI anything',
+      description: 'Go to Ask AI and type a question about your selected document.',
+      detail: 'You can ask for explanations, definitions, examples, or exam-style answers.'
+    },
+    {
+      title: 'Generate a summary',
+      description: 'Use the Summary feature to create a structured study overview from your document.',
+      detail: 'This saves time and helps you find key points quickly during revision.'
+    },
+    {
+      title: 'Save your best notes',
+      description: 'Use Saved Notes to keep important answers for later review.',
+      detail: 'A personal revision library makes exam prep faster and more reliable.'
+    }
+  ], []);
 
   useEffect(() => {
     localStorage.setItem('theme', theme);
     document.documentElement.setAttribute('data-theme', theme);
   }, [theme]);
+
+  useEffect(() => {
+    setOnboardingVisible(Boolean(currentUser?.firstTime));
+    setOnboardingStep(Number(currentUser?.onboardingStep ?? 0));
+  }, [currentUser]);
+
+  const saveCurrentUserState = (patch) => {
+    const next = {
+      ...currentUser,
+      ...patch
+    };
+    if (typeof onUpdateUser === 'function') {
+      onUpdateUser(next);
+    }
+    try {
+      localStorage.setItem('currentUser', JSON.stringify(next));
+    } catch (_err) {
+      // ignore local storage issues
+    }
+  };
+
+  const updateOnboarding = async (nextStep, complete = false) => {
+    try {
+      const response = await updateOnboardingStatus(token, !complete, nextStep);
+      const updatedUser = response?.user;
+      if (updatedUser) {
+        saveCurrentUserState(updatedUser);
+      }
+    } catch (err) {
+      console.error('Unable to persist onboarding state', err);
+    }
+  };
+
+  const handleOnboardingNext = async () => {
+    const nextStep = onboardingStep + 1;
+    const done = nextStep >= onboardingSteps.length;
+    setOnboardingStep(nextStep);
+    if (done) {
+      setOnboardingVisible(false);
+    }
+    await updateOnboarding(done ? nextStep : nextStep, done);
+  };
+
+  const handleSkipOnboarding = async () => {
+    setOnboardingVisible(false);
+    await updateOnboarding(onboardingSteps.length, true);
+  };
 
   useEffect(() => {
     if (!token) return undefined;
@@ -174,10 +256,12 @@ export default function Dashboard({ token, currentUser, onLogout }) {
   const runSummary = async () => {
     if (!docId.trim()) {
       setError('Enter a document ID first.');
+      notify.warning('Please select a document to summarize');
       return;
     }
     setError('');
     setBusy(true);
+    notify.info('Generating summary... This may take a moment', 0);
     try {
       const resp = await summarize(docId.trim(), token);
       setSummary(resp.summary || 'No summary returned.');
@@ -194,8 +278,10 @@ export default function Dashboard({ token, currentUser, onLogout }) {
         // Keep summary success even if analytics update fails.
       }
       setActive('summary');
+      notify.success('Summary generated successfully! Review it in the Summary tab', 5000);
     } catch (err) {
       setError(err.message || 'Failed to generate summary.');
+      notify.error(err.message || 'Failed to generate summary');
     } finally {
       setBusy(false);
     }
@@ -214,6 +300,7 @@ export default function Dashboard({ token, currentUser, onLogout }) {
   const handleDeleteDocument = async () => {
     if (!docId) {
       setError('Select a document to delete.');
+      notify.warning('Please select a document to delete');
       return;
     }
     const ok = window.confirm('Delete this uploaded document and its chunks? This action cannot be undone.');
@@ -229,8 +316,10 @@ export default function Dashboard({ token, currentUser, onLogout }) {
       setDocuments(current);
       setDocId(current.length ? current[0]._id : '');
       setActive('overview');
+      notify.success('Document deleted successfully', 4000);
     } catch (err) {
       setError(err.message || 'Failed to delete document.');
+      notify.error(err.message || 'Failed to delete document');
     } finally {
       setBusy(false);
     }
@@ -255,6 +344,16 @@ export default function Dashboard({ token, currentUser, onLogout }) {
 
   return (
     <div className="study-shell">
+      {onboardingVisible && currentUser?.firstTime && (
+        <OnboardingOverlay
+          visible={onboardingVisible}
+          step={Math.min(onboardingStep, onboardingSteps.length - 1)}
+          totalSteps={onboardingSteps.length}
+          onAdvance={handleOnboardingNext}
+          onSkip={handleSkipOnboarding}
+          stepData={onboardingSteps[onboardingStep] || onboardingSteps[0]}
+        />
+      )}
       <aside className="study-sidebar">
         <div className="brand">
           <img src={aiTeachLogo} alt="StudyCompanion AI logo showing AI teaching students" className="brand-logo sidebar-logo" />
@@ -305,6 +404,35 @@ export default function Dashboard({ token, currentUser, onLogout }) {
         <section className="study-panel">
           {active === 'overview' && (
             <div className="overview-grid">
+              <div className="overview-card guide-card">
+                <h3>First-Time User Guide</h3>
+                <div className="guide-grid">
+                  <div className="guide-step">
+                    <div className="guide-step-label">Upload Material</div>
+                    <p>Click the Upload tab to add your PDF, DOCX, or TXT notes.</p>
+                  </div>
+                  <div className="guide-step">
+                    <div className="guide-step-label">Select Document</div>
+                    <p>Choose your uploaded file from the Documents list.</p>
+                  </div>
+                  <div className="guide-step">
+                    <div className="guide-step-label">Quick Ask</div>
+                    <p>Go to Ask AI and type a question about the selected document.</p>
+                  </div>
+                  <div className="guide-step">
+                    <div className="guide-step-label">Generate Summary</div>
+                    <p>Use the Summary button to create a structured study overview.</p>
+                  </div>
+                  <div className="guide-step">
+                    <div className="guide-step-label">Saved Notes</div>
+                    <p>Save important answers for easy exam revision later.</p>
+                  </div>
+                </div>
+                <div className="guide-actions">
+                  <button className="button outline" onClick={() => setActive('upload')}>Upload Document</button>
+                  <button className="button" onClick={() => setActive('chat')}>Ask AI</button>
+                </div>
+              </div>
               {documentsUploaded === 0 && (
                 <div className="overview-card preview-card empty-state-card">
                   <h3>Get Started</h3>
@@ -367,29 +495,41 @@ export default function Dashboard({ token, currentUser, onLogout }) {
 
           {active === 'upload' && <FileUploader token={token} onUploaded={handleUploaded} />}
           {active === 'chat' && (
-            <ChatWindow
-              token={token}
-              docId={docId}
-              selectedDocument={selectedDoc}
-              onQuestionAsked={async () => {
-                try {
-                  const updated = await incrementAnalytics({ questionsAsked: 1 }, token);
-                  const next = updated?.analytics || DEFAULT_ANALYTICS;
-                  setAnalytics({
-                    questionsAsked: Number(next.questionsAsked) || 0,
-                    summariesGenerated: Number(next.summariesGenerated) || 0,
-                    studyTimeMs: Number(next.studyTimeMs) || 0
-                  });
-                } catch (_ignored) {
-                  console.error('Analytics increment failed (question).');
-                  // Ignore analytics update errors during chat.
-                }
-              }}
-              onAssistantSources={(sources) => {
-                const first = sources?.[0];
-                if (first?.chunkIndex) setHighlightedChunkIndex(first.chunkIndex);
-              }}
-            />
+            <div style={{ display: 'flex', gap: '16px', height: '100%' }}>
+              <ChatSidebar 
+                token={token}
+                docId={docId}
+                selectedDocument={selectedDoc}
+                currentChatId={currentChatId}
+                onSelectChat={setCurrentChatId}
+                onNewChat={(chatId) => setCurrentChatId(chatId)}
+              />
+              <ChatWindow
+                token={token}
+                docId={docId}
+                selectedDocument={selectedDoc}
+                currentChatId={currentChatId}
+                onSelectChat={setCurrentChatId}
+                onQuestionAsked={async () => {
+                  try {
+                    const updated = await incrementAnalytics({ questionsAsked: 1 }, token);
+                    const next = updated?.analytics || DEFAULT_ANALYTICS;
+                    setAnalytics({
+                      questionsAsked: Number(next.questionsAsked) || 0,
+                      summariesGenerated: Number(next.summariesGenerated) || 0,
+                      studyTimeMs: Number(next.studyTimeMs) || 0
+                    });
+                  } catch (_ignored) {
+                    console.error('Analytics increment failed (question).');
+                    // Ignore analytics update errors during chat.
+                  }
+                }}
+                onAssistantSources={(sources) => {
+                  const first = sources?.[0];
+                  if (first?.chunkIndex) setHighlightedChunkIndex(first.chunkIndex);
+                }}
+              />
+            </div>
           )}
           {active === 'summary' && (
             <div className="result-card">

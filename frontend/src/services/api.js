@@ -44,6 +44,15 @@ async function get(path, token) {
   return parseResponse(res);
 }
 
+async function put(path, data, token, isForm = false) {
+  const headers = {};
+  if (token) headers['Authorization'] = `Bearer ${token}`;
+  if (!isForm) headers['Content-Type'] = 'application/json';
+  const body = isForm ? data : JSON.stringify(data);
+  const res = await fetch(`${API_BASE}${path}`, { method: 'PUT', headers, body });
+  return parseResponse(res);
+}
+
 async function del(path, token) {
   const headers = {};
   if (token) headers['Authorization'] = `Bearer ${token}`;
@@ -53,6 +62,7 @@ async function del(path, token) {
 
 export const signup = (email, password, name) => post('/auth/signup', { email, password, name });
 export const login = (email, password) => post('/auth/login', { email, password });
+export const updateOnboardingStatus = (token, firstTime, onboardingStep) => put('/auth/onboarding', { firstTime, onboardingStep }, token);
 
 export const uploadDocument = (file, token, folder = 'General', onProgress) => {
   const form = new FormData();
@@ -94,7 +104,30 @@ export const getDocument = (docId, token) => get(`/docs/${docId}`, token);
 export const getChunks = (docId, token) => get(`/docs/${docId}/chunks`, token);
 export const deleteDocument = (docId, token) => del(`/docs/${docId}`, token);
 
-export const queryChat = (query, docId, token, history = []) => post('/chat/query', { query, docId, history }, token);
+export const queryChat = (query, docId, token, history = [], chatId = null) => post('/chat/query', { query, docId, history, chatId }, token);
 export const summarize = (docId, token) => post('/chat/summary', { docId }, token);
+export const generateQuiz = (docId, token) => post('/chat/generateQuiz', { docId }, token);
+
+// Chat History API functions
+export const getChatHistories = (token, folder = 'General', limit = 20, skip = 0, search = '') => 
+  get(`/chat-history?folder=${encodeURIComponent(folder)}&limit=${limit}&skip=${skip}&search=${encodeURIComponent(search)}`, token);
+
+export const getChatHistory = (chatId, token) => get(`/chat-history/${chatId}`, token);
+
+export const createChatHistory = (docId, title, token) => 
+  post('/chat-history', { docId, title }, token);
+
+export const addMessageToChat = (chatId, message, token) => 
+  post(`/chat-history/${chatId}/messages`, { message }, token);
+
+export const updateChatMetadata = (chatId, metadata, token) => 
+  put(`/chat-history/${chatId}/metadata`, metadata, token);
+
+export const deleteChatHistory = (chatId, token) => del(`/chat-history/${chatId}`, token);
+
+export const getChatFolders = (token) => get('/chat-history/folders', token);
+
+export const archiveChat = (chatId, token) => put(`/chat-history/${chatId}/archive`, {}, token);
+
 export const getAnalytics = (token) => get('/analytics', token);
 export const incrementAnalytics = (metrics, token) => post('/analytics/increment', metrics || {}, token);

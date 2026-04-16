@@ -1,22 +1,48 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { queryChat } from '../services/api';
+import { queryChat, getChatHistory } from '../services/api';
 
 const CHAT_HISTORY_KEY = 'study_companion_chat_history_v1';
 const SAVED_NOTES_KEY = 'study_companion_saved_notes_v1';
 
-export default function ChatWindow({ token, docId, onAssistantSources, onQuestionAsked, selectedDocument }) {
+export default function ChatWindow({ token, docId, onAssistantSources, onQuestionAsked, selectedDocument, currentChatId, onSelectChat }) {
   const [historyByDoc, setHistoryByDoc] = useState({});
+  const [currentMessages, setCurrentMessages] = useState([]);
   const [input, setInput] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [listening, setListening] = useState(false);
   const [voiceSupported, setVoiceSupported] = useState(false);
+  const [loadingChatHistory, setLoadingChatHistory] = useState(false);
 
   useEffect(() => {
     const supported = !!(window.SpeechRecognition || window.webkitSpeechRecognition);
     setVoiceSupported(supported);
   }, []);
 
+  // Load persisted chat history from database when currentChatId changes
+  useEffect(() => {
+    if (!currentChatId || !token) {
+      setCurrentMessages([]);
+      return;
+    }
+
+    const loadChatMessages = async () => {
+      setLoadingChatHistory(true);
+      try {
+        const chat = await getChatHistory(currentChatId, token);
+        setCurrentMessages(chat.messages || []);
+      } catch (err) {
+        console.error('Failed to load chat history:', err);
+        setCurrentMessages([]);
+      } finally {
+        setLoadingChatHistory(false);
+      }
+    };
+
+    loadChatMessages();
+  }, [currentChatId, token]);
+
+  // Load local chat history as fallback
   useEffect(() => {
     try {
       const raw = localStorage.getItem(CHAT_HISTORY_KEY);
@@ -39,11 +65,20 @@ export default function ChatWindow({ token, docId, onAssistantSources, onQuestio
   }, [historyByDoc]);
 
   const messages = useMemo(() => {
+    // If we have a persisted chat with messages, use those
+    if (currentMessages && currentMessages.length > 0) {
+      return currentMessages;
+    }
+    // Otherwise fall back to local storage
     if (!docId) return [];
     return historyByDoc[docId] || [];
-  }, [historyByDoc, docId]);
+  }, [currentMessages, historyByDoc, docId]);
 
   const appendMessage = (message) => {
+    // Update current messages for display
+    setCurrentMessages(prev => [...prev, message]);
+    
+    // Also update local storage as backup
     if (!docId) return;
     setHistoryByDoc((prev) => {
       const existing = prev[docId] || [];
@@ -52,7 +87,15 @@ export default function ChatWindow({ token, docId, onAssistantSources, onQuestio
     });
   };
 
-  const buildHistoryPayload = () => [];
+  const buildHistoryPayload = () => {
+    return messages
+      .filter(m => m.sender && m.text)
+      .map(m => ({
+        sender: m.sender,
+        text: m.text
+      }))
+      .slice(-6);
+  };
 
   const send = async (textOverride = '') => {
     const overrideText = typeof textOverride === 'string' ? textOverride : '';
@@ -63,7 +106,7 @@ export default function ChatWindow({ token, docId, onAssistantSources, onQuestio
       return;
     }
     const userText = normalized;
-    const userMsg = { sender: 'user', text: userText };
+    const userMsg = { sender: 'user', text: userText, timestamp: new Date().toISOString() };
     appendMessage(userMsg);
     if (typeof onQuestionAsked === 'function') {
       onQuestionAsked();
@@ -71,12 +114,14 @@ export default function ChatWindow({ token, docId, onAssistantSources, onQuestio
     setBusy(true);
     setError('');
     try {
-      const resp = await queryChat(userText, activeDocId, token, buildHistoryPayload());
-      appendMessage({
+      const resp = await queryChat(userText, activeDocId, token, buildHistoryPayload(), currentChatId);
+      const botMsg = {
         sender: 'bot',
         text: resp.answer || 'No answer returned.',
-        sources: Array.isArray(resp.sources) ? resp.sources : []
-      });
+        sources: Array.isArray(resp.sources) ? resp.sources : [],
+        timestamp: new Date().toISOString()
+      };
+      appendMessage(botMsg);
       if (typeof onAssistantSources === 'function' && Array.isArray(resp.sources)) {
         onAssistantSources(resp.sources);
       }
@@ -134,6 +179,7 @@ export default function ChatWindow({ token, docId, onAssistantSources, onQuestio
     if (!activeDocId) return;
     const ok = window.confirm('Clear chat history for this document?');
     if (!ok) return;
+    setCurrentMessages([]);
     setHistoryByDoc((prev) => {
       const next = { ...prev };
       delete next[activeDocId];
@@ -149,19 +195,20 @@ export default function ChatWindow({ token, docId, onAssistantSources, onQuestio
       <div className="chat-head">
         <h3>Ask Questions from Your Materials</h3>
         <div className="row-actions">
-          <button className="button outline" onClick={clearChatHistory} disabled={busy || !activeDocId}>
+          <button className="button outline" onClick={clearChatHistory} disabled={busy || !activeDocId} title="Clear chat history">
             Clear Chat
           </button>
           {voiceSupported && (
-            <button className="button outline voice-btn" onClick={toggleVoice} disabled={busy}>
-              {listening ? 'Listening...' : 'Ask AI'}
+            <button className="button outline voice-btn" onClick={toggleVoice} disabled={busy} title="Use voice input">
+              {listening ? 'Listening...' : '🎤'}
             </button>
           )}
         </div>
       </div>
       <div className="chat-log">
         {!docId && <div className="summary-empty">Select a document to view its chat history.</div>}
-        {docId && messages.length === 0 && (
+        {docId && loadingChatHistory && <div className="summary-empty">Loading chat history...</div>}
+        {docId && !loadingChatHistory && messages.length === 0 && (
           <div className="summary-empty">No chat history for this document yet. Ask your first question.</div>
         )}
         {messages.map((m, i) => (
@@ -172,7 +219,7 @@ export default function ChatWindow({ token, docId, onAssistantSources, onQuestio
                 <div className="sources-title">Sources used:</div>
                 {m.sources.slice(0, 3).map((s, idx) => (
                   <div key={`${i}-src-${idx}`} className="source-chip">
-                    {`${s.document} (chunk ${s.chunkIndex})`}
+                    {`${s.document} (chunk ${s.chunkIndex || idx + 1})`}
                   </div>
                 ))}
               </div>
@@ -192,8 +239,16 @@ export default function ChatWindow({ token, docId, onAssistantSources, onQuestio
       </div>
       {error && <p className="error-text">{error}</p>}
       <div className="chat-input-row">
-        <input value={input} onChange={e=>setInput(e.target.value)} placeholder="Ask a question from selected PDF..." />
-        <button className="button" onClick={() => send()} disabled={busy}>{busy ? 'Thinking...' : 'Send'}</button>
+        <input 
+          value={input} 
+          onChange={e=>setInput(e.target.value)} 
+          onKeyPress={(e) => e.key === 'Enter' && send()}
+          placeholder="Ask a question from selected PDF..." 
+          disabled={busy}
+        />
+        <button className="button" onClick={() => send()} disabled={busy} title="Send your question">
+          {busy ? 'Thinking...' : 'Send'}
+        </button>
       </div>
     </div>
   );

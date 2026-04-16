@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import LoginPage from './pages/LoginPage.jsx';
 import Dashboard from './pages/Dashboard.jsx';
+import { NotificationProvider } from './context/NotificationContext.jsx';
 
 function App() {
   const [token, setToken] = useState(() => localStorage.getItem('token'));
@@ -41,11 +42,13 @@ function App() {
   };
 
   return (
-    <div>
-      {!token && view === 'login' && <LoginPage onLogin={handleLogin} onModeChange={setView} />}
-      {!token && view === 'signup' && <LoginPage onLogin={handleLogin} initialMode="signup" onModeChange={setView} />}
-      {token && <Dashboard token={token} currentUser={currentUser} onLogout={handleLogout} />}
-    </div>
+    <NotificationProvider>
+      <div>
+        {!token && view === 'login' && <LoginPage onLogin={handleLogin} onModeChange={setView} />}
+        {!token && view === 'signup' && <LoginPage onLogin={handleLogin} initialMode="signup" onModeChange={setView} />}
+        {token && <Dashboard token={token} currentUser={currentUser} onLogout={handleLogout} onUpdateUser={setCurrentUser} />}
+      </div>
+    </NotificationProvider>
   );
 }
 
